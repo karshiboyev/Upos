@@ -1,4 +1,6 @@
 import uuid
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser,  PermissionsMixin
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractUser, UserManager
@@ -63,7 +65,9 @@ class User(AbstractBaseUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_shop = models.BooleanField(default=False)
+    shop_id = models.UUIDField(null=True, blank=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -79,7 +83,7 @@ class User(AbstractBaseUser):
 # ========================
 class Shop(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user_id = models.OneToOneField(User, on_delete=models.CASCADE, related_name='shop')  # shop_id emas, shop
+    user_id = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # shop_id emas, shop
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=200, blank=True, null=True)
     is_active = models.BooleanField(default=True)
@@ -134,11 +138,12 @@ class Product(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    user_id = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     cost_price = models.DecimalField(max_digits=12, decimal_places=2)
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
-    category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE)
-    barcode = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE,null=True,blank=True)
+    barcode = models.CharField(max_length=64, blank=True, null=True)
     image_url = models.ImageField(upload_to='img/')
     is_active = models.BooleanField(default=False)
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)

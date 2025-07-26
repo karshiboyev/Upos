@@ -3,9 +3,10 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView,
 
 from apps.views import ShopCreateAPIView, ShopListAPIView, CategoryCreatApi, CategoryListApi, CategoryUpdateApi, \
     CategoryDetailApi, UnitCreateApi, RoleCreateApi, RoleListApi, RoleDetailApi, RoleUpdateApi, ProductCreateApi, \
-    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, TransactionBrcode, TransactionList, PurchaseAPI, \
-    TransactionHistory, TransactionItemsHistory, PaymentView, DailyDeductionAPI, StockMovementAPI, StockMovementListAPI, \
-    SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView
+    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, PaymentView, DailyDeductionAPI, \
+    StockMovementAPI, StockMovementListAPI, \
+    SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView, \
+    CreateTransactionView
 
 urlpatterns = [
     # JWT
@@ -45,25 +46,16 @@ urlpatterns += [
 ]
 
 urlpatterns += [
-    # Transaction
-    path('api/transaction/list/<str:int>', TransactionList.as_view()),
-    path('api/transaction/barcode/<str:int>', TransactionBrcode.as_view()),
-    path('api/transaction/purches', PurchaseAPI.as_view()),
-    path('api/transaction/history', TransactionHistory.as_view()),
-    path('api/transactionItmes/history', TransactionItemsHistory.as_view())
-]
+    # Pyment
+    path('api/payment/', PaymentView.as_view()),
+    path('api/payment/daliy/list/', DailyDeductionAPI.as_view()),
 
-urlpatterns += [
-    #Pyment
-    path('api/payment/',PaymentView.as_view()),
-    path('api/payment/daliy/list/',DailyDeductionAPI.as_view()),
+    # STOCKMOVEMENT
+    path('api/stock/movement/post/', StockMovementAPI.as_view()),
+    path('api/stock/movement/list/', StockMovementListAPI.as_view()),
 
-    #STOCKMOVEMENT
-    path('api/stock/movement/post/',StockMovementAPI.as_view()),
-    path('api/stock/movement/list/',StockMovementListAPI.as_view()),
-
-    #Serche
-    path('api/sercher/',SearchAPI.as_view()),
+    # Serche
+    path('api/sercher/', SearchAPI.as_view()),
 
 ]
 urlpatterns += [
@@ -73,4 +65,7 @@ urlpatterns += [
     path('login/verifyOTP', VerifyLoginOtpView.as_view(), name='token_obtain_pair'),
     path('token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
 ]
-
+# Transaction
+urlpatterns += [
+    path('api/transaction/', CreateTransactionView.as_view())
+]

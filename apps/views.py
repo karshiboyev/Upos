@@ -1,13 +1,10 @@
-import uuid
-from decimal import Decimal
-from django.db import transaction
-from django.db.models import OuterRef
+
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework.generics import get_object_or_404, CreateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from apps.models import Customer, TransactionItem, Payment
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from apps.models import   Payment
 from apps.permissions import IsActiveUser
 from apps.serializers import *
 from apps.tasks import start_daily_deduction, deduct_daily_fee
@@ -38,7 +35,8 @@ class ShopCreateAPIView(generics.CreateAPIView):
 
         # Hozirgi foydalanuvchining is_shop maydonini True qilish
         user = self.request.user
-        user.shop_id = shop
+        user.is_shop = True
+        user.shop_id =shop.id
         user.save()
 
         return shop
@@ -46,8 +44,10 @@ class ShopCreateAPIView(generics.CreateAPIView):
 
 @extend_schema(tags=['shops'])
 class ShopListAPIView(generics.ListAPIView):
-    queryset = Shop.objects.all()
     serializer_class = ShopSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        return Shop.objects.filter(user_id=self.request.user.id)
 
 
 @extend_schema(tags=['category'])
@@ -131,8 +131,11 @@ class ProductCreateApi(generics.CreateAPIView):
 
 @extend_schema(tags=['product'])
 class ProductListApi(generics.ListAPIView):
-    queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Product.objects.filter(shop_id=self.request.user.shop_id)
 
 
 @extend_schema(tags=['product'])
@@ -157,238 +160,9 @@ class ProfileListApi(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+
         return User.objects.filter(id=self.request.user.id)
 
-
-@extend_schema(tags=['transaction'])
-class TransactionBrcode(generics.ListAPIView):
-    queryset = Product.objects.all()
-    serializer_class = TransactionBrcodeSerializer
-
-
-@extend_schema(tags=['transaction'])
-class TransactionList(generics.ListAPIView):
-    queryset = Product.objects.all()
-    serializer_class = TransactionListSerializer
-
-
-# views.py
-@extend_schema(tags=['transaction'])
-class ProductSearchAPI(APIView):
-    def get(self, request):
-        barcode = request.query_params.get('barcode')
-        name = request.query_params.get('name')
-
-        products = Product.objects.all()
-        if barcode:
-            products = products.filter(barcode=barcode)
-        if name:
-            products = products.filter(name__icontains=name)
-
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
-
-
-@extend_schema(
-    tags=['transaction'],
-    request=PurchaseSerializer,
-    responses={201: PurchaseSerializer}
-)
-class PurchaseAPI(GenericAPIView):
-    permission_classes = [IsActiveUser]
-    serializer_class = PurchaseSerializer  # Serializer klassini qo'shamiz
-
-    @transaction.atomic
-    def post(self, request):
-        # Foydalanuvchi shopini tekshirish (filter orqali birinchi faol do'konni olamiz)
-        try:
-            user_shop = Shop.objects.filter(
-                user_id=request.user.id,
-                is_active=True
-            ).first()  # Birinchi topilgan faol do'konni olamiz
-
-            if not user_shop:
-                return Response({"error": "Sizning faol do'koningiz topilmadi"}, status=403)
-
-        except Exception as e:
-            return Response({"error": f"Do'kon ma'lumotlarini olishda xatolik: {str(e)}"}, status=500)
-
-        serializer = self.get_serializer(data=request.data)  # DRF-ni serializer metodidan foydalanish
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        data = serializer.validated_data
-        errors = []
-        transaction_items = []
-        total_amount = Decimal('0')
-        cost_total = Decimal('0')
-        customer = None
-
-        # Mahsulotlarni tekshirish
-        for item in data['items']:
-            try:
-                product = Product.objects.select_for_update().get(
-                    id=item['product_id'],
-                    shop_id=user_shop.id,
-                    is_active=True
-                )
-                quantity = Decimal(str(item['quantity']))
-
-                if quantity <= 0:
-                    errors.append({
-                        'product_id': item['product_id'],
-                        'message': "Miqdor musbat son bo'lishi kerak"
-                    })
-                    continue
-
-                if product.quantity < quantity:
-                    errors.append({
-                        'product_id': product.id,
-                        'message': f"Yetarli mahsulot yo'q. Qolgan: {product.quantity}"
-                    })
-                    continue
-
-                if product.price <= 0:
-                    errors.append({
-                        'product_id': product.id,
-                        'message': "Mahsulot narxi noto'g'ri"
-                    })
-                    continue
-
-                item_total = product.price * quantity
-                item_cost = product.cost_price * quantity
-
-                total_amount += item_total
-                cost_total += item_cost
-
-                transaction_items.append({
-                    'product': product,
-                    'quantity': quantity,
-                    'price': product.price,
-                    'cost_price': product.cost_price,
-                    'total': item_total,
-                    'unit': product.unit.name if product.unit else 'dona'
-                })
-
-            except Product.DoesNotExist:
-                errors.append({
-                    'product_id': item['product_id'],
-                    'message': "Mahsulot topilmadi yoki faol emas"
-                })
-            except Exception as e:
-                errors.append({
-                    'product_id': item.get('product_id', 'unknown'),
-                    'message': f"Xatolik yuz berdi: {str(e)}"
-                })
-
-        if errors:
-            return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
-
-        if total_amount <= 0:
-            return Response(
-                {"error": "Umumiy summa noto'g'ri"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Qarz mijozini yaratish yoki yangilash
-        if data.get('payment_type') == 'debt':
-            if not data.get('customer_phone'):
-                return Response(
-                    {"error": "Qarz uchun mijoz telefon raqami kerak"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            customer, created = Customer.objects.get_or_create(
-                phone_number=data['customer_phone'],
-                shop_id=user_shop.id,
-                defaults={
-                    'full_name': data.get('customer_name', ''),
-                    'total_debt': Decimal('0')
-                }
-            )
-
-            if not created and data.get('customer_name'):
-                customer.full_name = data['customer_name']
-
-            customer.total_debt += total_amount
-            customer.save()
-
-        # Transaksiyani yaratish
-        try:
-            main_transaction = Transaction.objects.create(
-                total_price=total_amount,
-                cost_total=cost_total,
-                profit=total_amount - cost_total,
-                payment_type=data['payment_type'],
-                customer=customer,
-                user=request.user,
-                shop_id=user_shop.id,
-                status='completed'
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"Transaksiya yaratishda xatolik: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        # Transaksiya elementlarini yaratish
-        try:
-            for item in transaction_items:
-                TransactionItem.objects.create(
-                    transaction=main_transaction,
-                    product=item['product'],
-                    product_name=item['product'].name,
-                    product_price=item['price'],
-                    cost_at_sale=item['cost_price'],
-                    quantity=item['quantity'],
-                    total=item['total'],
-                    unit=item['unit']
-                )
-
-                item['product'].quantity -= item['quantity']
-                item['product'].save()
-
-        except Exception as e:
-            return Response(
-                {"error": f"Transaksiya elementlarini yaratishda xatolik: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        # Javobni tayyorlash
-        response_data = {
-            "success": True,
-            "transaction_id": main_transaction.id,
-            "total_amount": str(total_amount),
-            "cost_total": str(cost_total),
-            "profit": str(total_amount - cost_total),
-            "payment_type": data['payment_type'],
-            "created_at": main_transaction.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "items": [{
-                "product_id": item['product'].id,
-                "name": item['product'].name,
-                "price": str(item['price']),
-                "cost_price": str(item['cost_price']),
-                "quantity": str(item['quantity']),
-                "total": str(item['total']),
-                "unit": item['unit']
-            } for item in transaction_items],
-            "customer": {
-                "id": customer.id,
-                "name": customer.full_name,
-                "phone": customer.phone_number,
-                "total_debt": str(customer.total_debt)
-            } if customer else None
-        }
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
-@extend_schema(tags=["transaction"])
-class TransactionHistory(generics.ListAPIView):
-    queryset = Transaction
-
-
-@extend_schema(tags=["transaction"])
-class TransactionItemsHistory(generics.ListAPIView):
-    queryset = TransactionItem
 
 
 @extend_schema(tags=["Pyment"])
@@ -571,8 +345,17 @@ class VerifyRegisterOtpView(GenericAPIView):
                 "full_name": serializer.full_name,
             }
             user = User.objects.create(**data)
+
+            refresh = RefreshToken.for_user(user)
+            access_token = refresh.access_token
+
             serializer = UserModelSerializer(instance=user)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            response_data = serializer.data.copy()
+            response_data["tokens"] = {
+                "access": str(access_token),
+                "refresh": str(refresh),
+            }
+            return Response(response_data, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -588,3 +371,34 @@ class RegisterAPIView(GenericAPIView):
             send_code.delay(user_data=serializer.data, message=message, pk=pk)
             return Response({"message": "tastiqlash uchun code yuborilidi !", "pk": pk}, status=status.HTTP_200_OK)
         return Response(serializer.errors)
+
+
+
+@extend_schema(tags=['Transaction'])
+class CreateTransactionView(generics.CreateAPIView):
+    serializer_class = CreateTransactionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        if serializer.is_valid():
+            try:
+                result = serializer.save()
+                return Response({
+                    'success': True,
+                    'message': 'Transaction created successfully',
+                    'data': result
+                }, status=status.HTTP_201_CREATED)
+
+            except Exception as e:
+                return Response({
+                    'success': False,
+                    'message': f'Error creating transaction: {str(e)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': False,
+            'message': 'Validation failed',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
