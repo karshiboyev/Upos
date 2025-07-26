@@ -1,4 +1,3 @@
-
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -65,11 +64,11 @@ WSGI_APPLICATION = 'root.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'upos',      # Ma'lumotlar bazasi nomi
-        'USER': 'postgres',      # PostgreSQL foydalanuvchi nomi
-        'PASSWORD': '1',       # PostgreSQL foydalanuvchi paroli
-        'HOST': 'localhost',              # Agar lokalda ishlatayotgan bo'lsangiz
-        'PORT': '5432',                   # PostgreSQL default porti
+        'NAME': 'upos',  # Ma'lumotlar bazasi nomi
+        'USER': 'postgres',  # PostgreSQL foydalanuvchi nomi
+        'PASSWORD': '1',  # PostgreSQL foydalanuvchi paroli
+        'HOST': 'localhost',  # Agar lokalda ishlatayotgan bo'lsangiz
+        'PORT': '5432',  # PostgreSQL default porti
     }
 }
 
@@ -108,7 +107,7 @@ REST_FRAMEWORK = {
     ],
     # drf_spectacular
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_AUTHENTICATION_CLASSES':(
+    'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
@@ -117,6 +116,7 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Your project description',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 SIMPLE_JWT = {
@@ -158,3 +158,23 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
 }
+# settings.py
+from datetime import timedelta
+
+JWT_AUTH = {
+    'JWT_EXPIRATION_DELTA': timedelta(days=7),  # Token 7 kun ishlaydi
+    'JWT_ALLOW_REFRESH': True,
+    'JWT_REFRESH_EXPIRATION_DELTA': timedelta(days=30),  # Refresh token 30 kun
+}
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BEAT_SCHEDULE = {
+    'deduct-daily-fee': {
+        'task': 'your_app.tasks.deduct_daily_fee',
+        'schedule': 86400.0,
+    },
+}
+
+ESKIZ_EMAIL = "absaitovdev@gmail.com"
+ESKIZ_PASSWORD = "XCWdtQKkEqItsIMVgkpgL1nJRXJk9OGhxTULIZ0a"

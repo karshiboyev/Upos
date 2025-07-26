@@ -1,11 +1,11 @@
-from django.conf.urls.static import static
 from django.urls import path
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView, TokenRefreshView
 
 from apps.views import ShopCreateAPIView, ShopListAPIView, CategoryCreatApi, CategoryListApi, CategoryUpdateApi, \
     CategoryDetailApi, UnitCreateApi, RoleCreateApi, RoleListApi, RoleDetailApi, RoleUpdateApi, ProductCreateApi, \
-    ProductListApi, ProductDetailApi, ProductUpdateApi
-from root import settings
+    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, TransactionBrcode, TransactionList, PurchaseAPI, \
+    TransactionHistory, TransactionItemsHistory, PaymentView, DailyDeductionAPI, StockMovementAPI, StockMovementListAPI, \
+    SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView
 
 urlpatterns = [
     # JWT
@@ -30,13 +30,47 @@ urlpatterns += [
     path('api/role/list/', RoleListApi.as_view()),
     path('api/role/<str:id>/delete/', RoleDetailApi.as_view()),
     path('api/role/<str:id>/update/', RoleUpdateApi.as_view()),
+
+    # Profile and password
+    path('api/profile/', ProfileListApi.as_view())
 ]
 
 urlpatterns += [
-                    #PRODUCTS
-                   path('api/category/products/creat/', ProductCreateApi.as_view()),
+    # PRODUCTS
+    path('api/category/products/creat/', ProductCreateApi.as_view()),
     path('api/category/products/list/', ProductListApi.as_view()),
     path('api/category/products/<str:id>/delete/', ProductDetailApi.as_view()),
     path('api/category/products/<str:id>/update/', ProductUpdateApi.as_view()),
 
-               ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+urlpatterns += [
+    # Transaction
+    path('api/transaction/list/<str:int>', TransactionList.as_view()),
+    path('api/transaction/barcode/<str:int>', TransactionBrcode.as_view()),
+    path('api/transaction/purches', PurchaseAPI.as_view()),
+    path('api/transaction/history', TransactionHistory.as_view()),
+    path('api/transactionItmes/history', TransactionItemsHistory.as_view())
+]
+
+urlpatterns += [
+    #Pyment
+    path('api/payment/',PaymentView.as_view()),
+    path('api/payment/daliy/list/',DailyDeductionAPI.as_view()),
+
+    #STOCKMOVEMENT
+    path('api/stock/movement/post/',StockMovementAPI.as_view()),
+    path('api/stock/movement/list/',StockMovementListAPI.as_view()),
+
+    #Serche
+    path('api/sercher/',SearchAPI.as_view()),
+
+]
+urlpatterns += [
+    path('register', RegisterAPIView.as_view(), name='token_obtain_pair'),
+    path('register/verifyOtp', VerifyRegisterOtpView.as_view(), name='token_obtain_pair'),
+    path('login', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('login/verifyOTP', VerifyLoginOtpView.as_view(), name='token_obtain_pair'),
+    path('token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
+]
+

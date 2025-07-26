@@ -1,61 +1,90 @@
 import uuid
+from django.contrib.auth.models import AbstractBaseUser,  PermissionsMixin
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-
 
 # ========================
 # Custom User Manager
 # ========================
-class UserManager(BaseUserManager):
-    def create_user(self, phone_number, password=None, **extra_fields):
+class CustomUserManager(UserManager):
+    def _create_user_object(self, phone_number, password, **extra_fields):
         if not phone_number:
-            raise ValueError("Phone number is required")
+            raise ValueError("The given phone number must be set")
         user = self.model(phone_number=phone_number, **extra_fields)
-        user.set_password(password)
+        user.password = make_password(password)
+        return user
+
+    def _create_user(self, phone_number, password, **extra_fields):
+
+        user = self._create_user_object(phone_number, password, **extra_fields)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, phone_number, password, **extra_fields):
-        extra_fields.setdefault('is_superuser', True)
-        return self.create_user(phone_number, password, **extra_fields)
+    async def _acreate_user(self, phone_number, password, **extra_fields):
+        user = self._create_user_object(phone_number, password, **extra_fields)
+        await user.asave(using=self._db)
+        return user
+
+    def create_user(self, phone_number, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", False)
+        extra_fields.setdefault("is_superuser", False)
+        return self._create_user(phone_number, password, **extra_fields)
+
+    create_user.alters_data = True
+
+    async def acreate_user(self, phone_number, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", False)
+        extra_fields.setdefault("is_superuser", False)
+        return await self._acreate_user(phone_number, password, **extra_fields)
+
+    acreate_user.alters_data = True
+
+    def create_superuser(self, phone_number, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+
+        return self._create_user(phone_number, password, **extra_fields)
 
 
-# ========================
-# Shop
-# ========================
-class Shop(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100)
-    location = models.CharField(max_length=200, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+
+
 
 
 # ========================
 # User (SuperAdmin)
 # ========================
-class User(AbstractBaseUser, PermissionsMixin):
+class User(AbstractBaseUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
-    full_name = models.CharField(max_length=100, blank=True, null=True)
-    is_paid = models.BooleanField(default=False)
-    paid_until = models.DateField(blank=True, null=True)
-    shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="users")
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    last_login = models.DateTimeField(blank=True, null=True)
-
-    objects = UserManager()
-
+    objects = CustomUserManager()
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []
 
     def __str__(self):
         return self.phone_number
 
+# ========================
+# Shop
+# ========================
+class Shop(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user_id = models.OneToOneField(User, on_delete=models.CASCADE, related_name='shop')  # shop_id emas, shop
+    name = models.CharField(max_length=100)
+    location = models.CharField(max_length=200, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 # ========================
 # Role & Permission
@@ -110,12 +139,13 @@ class Product(models.Model):
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE)
     barcode = models.CharField(max_length=64, unique=True, blank=True, null=True)
-    image_url = models.ImageField(upload_to='images/')
-    is_active = models.BooleanField(default=True)
+    image_url = models.ImageField(upload_to='img/')
+    is_active = models.BooleanField(default=False)
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    quantity = models.IntegerField(default=0)
+    stock = models.IntegerField(default=0)
 
 
 
@@ -124,7 +154,6 @@ class Product(models.Model):
 # ========================
 class StockMovement(models.Model):
     MOVEMENT_TYPES = [('in', 'IN'), ('out', 'OUT'), ('adjust', 'ADJUST')]
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.IntegerField()
