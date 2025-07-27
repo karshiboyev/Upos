@@ -97,43 +97,9 @@ class Role(models.Model):
     name = models.CharField(max_length=50, unique=True)
 
 
-class Permission(models.Model):
-    name = models.CharField(max_length=100, unique=True)
 
 
-class RolePermission(models.Model):
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
 
-    class Meta:
-        unique_together = ('role', 'permission')
-
-
-class UserRole(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-
-    class Meta:
-        unique_together = ('user', 'role')
-
-
-# ========================
-# Units & Categories
-# ========================
-class Unit(models.Model):
-    name = models.CharField(max_length=20, unique=True)
-
-
-class ProductCategory(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100)
-    shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="categories")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-
-# ========================
-# Product
-# ========================
 class Product(models.Model):
     UNIT_CHOICES = [
         ("dona", "Dona"),
@@ -151,21 +117,17 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=12, decimal_places=2)
     cost_price = models.DecimalField(max_digits=12, decimal_places=2)
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
-    category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE,null=True,blank=True)
     barcode = models.CharField(max_length=64, unique=True, default=uuid.uuid4)
     image_url = models.ImageField(upload_to='img/')
     is_active = models.BooleanField(default=False)
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    quantity = models.IntegerField(default=0)
+    quantity = models.FloatField(default=0.0)
     stock = models.IntegerField(default=0)
 
 
 
-# ========================
-# Stock Movement
-# ========================
 class StockMovement(models.Model):
     MOVEMENT_TYPES = [('in', 'IN'), ('out', 'OUT'), ('adjust', 'ADJUST')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

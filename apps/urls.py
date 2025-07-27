@@ -1,9 +1,8 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView, TokenRefreshView
 
-from apps.views import ShopCreateAPIView, ShopListAPIView, CategoryCreatApi, CategoryListApi, CategoryUpdateApi, \
-    CategoryDetailApi, UnitCreateApi, RoleCreateApi, RoleListApi, RoleDetailApi, RoleUpdateApi, ProductCreateApi, \
-    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, PaymentView, DailyDeductionAPI, \
+from apps.views import ShopCreateAPIView, ShopListAPIView,ProductCreateApi, \
+    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, \
     StockMovementAPI, StockMovementListAPI, \
     SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView, \
     TransactionsList, ForgotPasswordAPIView, ForgotOTPdAPIView, ForgotUpdatePasswordAPIView, TransactionCreateAPIView
@@ -18,20 +17,6 @@ urlpatterns = [
 
 ]
 urlpatterns += [
-    # Category
-    path('api/category/create/', CategoryCreatApi.as_view()),
-    path('api/category/list/', CategoryListApi.as_view()),
-    path('categories/<str:id>/', CategoryDetailApi.as_view(), name='category-detail'),
-    path('api/categories/<str:id>/update/', CategoryUpdateApi.as_view(), name='category-update'),
-    # UNIT
-    path('api/unit/creat/', UnitCreateApi.as_view()),
-
-    # ROLE
-    path('api/role/creat/', RoleCreateApi.as_view()),
-    path('api/role/list/', RoleListApi.as_view()),
-    path('api/role/<str:id>/delete/', RoleDetailApi.as_view()),
-    path('api/role/<str:id>/update/', RoleUpdateApi.as_view()),
-
     # Profile and password
     path('api/profile/', ProfileListApi.as_view())
 ]
@@ -46,10 +31,6 @@ urlpatterns += [
 ]
 
 urlpatterns += [
-    # Pyment
-    path('api/payment/', PaymentView.as_view()),
-    path('api/payment/daliy/list/', DailyDeductionAPI.as_view()),
-
     # STOCKMOVEMENT
     path('api/stock/movement/post/', StockMovementAPI.as_view()),
     path('api/stock/movement/list/', StockMovementListAPI.as_view()),

@@ -7,7 +7,7 @@ from rest_framework.fields import CharField, IntegerField
 from rest_framework.serializers import Serializer, ModelSerializer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import ProductCategory, Product, Shop, User, Unit, Role, StockMovement, Customer, TransactionItem, \
+from .models import  Product, Shop, User,  Role, StockMovement, Customer, TransactionItem, \
     Transaction
 
 
@@ -17,18 +17,6 @@ class ShopSerializer(serializers.ModelSerializer):
         fields = ['id', 'user_id', 'name', 'location', 'is_active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-
-class ProductCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductCategory
-        fields = ['id', 'name', 'shop', 'created_at']
-        read_only_fields = ['id', 'created_at']
-
-
-class UnitSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Unit
-        fields = ['name']
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -42,7 +30,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'description', 'price', 'cost_price', 'user_id',
-            'unit', 'category', 'barcode', 'image_url', 'quantity',
+            'unit',  'barcode', 'image_url', 'quantity',
             'is_active', 'shop', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -60,31 +48,6 @@ class ProfileSerializer(serializers.ModelSerializer):
 class PurchaseItemSerializer(serializers.Serializer):
     product_id = serializers.UUIDField()
     quantity = serializers.DecimalField(max_digits=10, decimal_places=3, min_value=0.001)
-
-
-class PurchaseSerializer(serializers.Serializer):
-    items = PurchaseItemSerializer(many=True)  # Bir nechta mahsulot uchun
-    payment_type = serializers.ChoiceField(choices=[('cash', 'Naqt'), ('debt', 'Qarz')])
-    customer_phone = serializers.CharField(
-        required=False,
-        allow_null=True,
-        allow_blank=True,
-        trim_whitespace=True
-    )
-    customer_name = serializers.CharField(
-        required=False,
-        allow_null=True,
-        allow_blank=True,
-        trim_whitespace=True
-    )
-
-    def validate(self, data):
-        if data['payment_type'] == 'debt':
-            if not data.get('customer_phone'):
-                raise serializers.ValidationError({"customer_phone": "Qarz uchun telefon raqami kerak"})
-            if not data.get('customer_name'):
-                raise serializers.ValidationError({"customer_name": "Qarz uchun ism kerak"})
-        return data
 
 
 class StockMovementSerializer(serializers.ModelSerializer):
@@ -283,17 +246,21 @@ class TransactionCreateSerializer(serializers.Serializer):
                     raise serializers.ValidationError({"product_id": f"Mahsulot topilmadi: {item['id']}"})
 
                 quantity = item["count"]
-                if quantity <= 0:
-                    raise serializers.ValidationError(
-                        {"count": f"{product.name} uchun count 0 dan katta bo'lishi kerak."})
 
-                # 3. Product zaxirasini tekshiramiz
-                if product.quantity < quantity:
+                # 1. Noldan katta bo'lishi kerak
+                if quantity <= 0:
                     raise serializers.ValidationError({
-                        "stock": f"{product.name} mahsulotda {product.quantity} dona bor, {quantity} talab qilinyapti."
+                        "count": f"{product.name} uchun count 0 dan katta bo'lishi kerak."
                     })
 
-                # 4. Mahsulot zaxirasidan ayiramiz
+                # 2. Agar zaxira yetarli bo'lmasa, avtomatik kirim qilamiz
+                if product.quantity < quantity:
+                    missing = quantity - product.quantity
+                    print(f"[INFO] {product.name}: Zaxira yetarli emas. {missing} dona avtomatik kirim qilinyapti.")
+                    product.quantity += missing  # avtomatik kirim
+                    # Ehtimol: bu joyda siz StockLog modelga kirim yozishingiz mumkin
+
+                # 3. Endi zaxiradan ayiramiz
                 product.quantity -= quantity
                 product.save()
 
@@ -324,3 +291,5 @@ class TransactionCreateSerializer(serializers.Serializer):
                 customer.save()
 
         return transaction
+
+

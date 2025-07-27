@@ -2,14 +2,13 @@ from django.utils import timezone
 
 from django.db.models.aggregates import Count
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from rest_framework.generics import get_object_or_404, CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.models import Payment
 from apps.permissions import IsActiveUser
 from apps.serializers import *
-from apps.tasks import start_daily_deduction, deduct_daily_fee
+
 import uuid
 from rest_framework.generics import GenericAPIView
 from rest_framework.views import APIView
@@ -53,77 +52,12 @@ class ShopListAPIView(generics.ListAPIView):
         return Shop.objects.filter(user_id=self.request.user.id)
 
 
-@extend_schema(tags=['category'])
-class CategoryCreatApi(generics.CreateAPIView):
-    queryset = ProductCategory.objects.all()
-    serializer_class = ProductCategorySerializer
 
 
-@extend_schema(tags=['category'])
-class CategoryListApi(generics.ListAPIView):
-    queryset = ProductCategory.objects.all()
-    serializer_class = ProductCategorySerializer
 
 
-@extend_schema(tags=['category'])
-class CategoryDetailApi(generics.DestroyAPIView):
-    queryset = ProductCategory.objects.all()
-    serializer_class = ProductCategorySerializer
-    lookup_field = 'id'
-    lookup_url_kwarg = 'id'
-
-    def perform_destroy(self, instance):
-        instance.delete()
 
 
-@extend_schema(tags=['category'])
-class CategoryUpdateApi(generics.UpdateAPIView):
-    queryset = ProductCategory.objects.all()
-    serializer_class = ProductCategorySerializer
-
-    def get_object(self):
-        queryset = self.filter_queryset(self.get_queryset())
-        lookup_value = self.kwargs['id']
-
-        try:
-            return queryset.get(id=uuid.UUID(str(lookup_value)))
-        except (ValueError, AttributeError):
-            return get_object_or_404(queryset, pk=int(lookup_value))
-
-
-@extend_schema(tags=['Unit'])
-class UnitCreateApi(generics.CreateAPIView):
-    queryset = Unit.objects.all()
-    serializer_class = UnitSerializer
-
-
-@extend_schema(tags=['Role'])
-class RoleCreateApi(generics.CreateAPIView):
-    queryset = Role.objects.all()
-    serializer_class = RoleSerializer
-
-
-@extend_schema(tags=['Role'])
-class RoleListApi(generics.ListAPIView):
-    queryset = Role.objects.all()
-    serializer_class = RoleSerializer
-
-
-@extend_schema(tags=['Role'])
-class RoleDetailApi(generics.DestroyAPIView):
-    queryset = Role.objects.all()
-    serializer_class = RoleSerializer
-    lookup_field = 'id'
-    lookup_url_kwarg = 'id'
-
-    def perform_destroy(self, instance):
-        instance.delete()
-
-
-@extend_schema(tags=['Role'])
-class RoleUpdateApi(generics.UpdateAPIView):
-    queryset = Role.objects.all()
-    serializer_class = RoleSerializer
 
 
 @extend_schema(tags=['product'])
@@ -165,65 +99,6 @@ class ProfileListApi(generics.ListAPIView):
     def get_queryset(self):
         return User.objects.filter(id=self.request.user.id)
 
-
-@extend_schema(tags=["Pyment"])
-# PYMENT
-class PaymentView(APIView):
-    def post(self, request):
-        user = request.user
-        amount = float(request.data.get('amount', 0))
-
-        # To'lovni yaratamiz
-        payment = Payment.objects.create(
-            user=user,
-            amount=amount,
-            payment_status='paid',
-            description='To\'lov qabul qilindi'
-        )
-
-        # Foydalanuvchi balansini yangilaymiz
-        user.balance += amount
-        user.is_active = True
-        user.save()
-
-        # Kunlik yechishni boshlaymiz
-        start_daily_deduction().delay(user.id)
-
-        return Response({
-            "success": True,
-            "message": f"To'lov qabul qilindi! Yangi balans: {user.balance} so'm",
-            "new_balance": user.balance
-        })
-
-
-@extend_schema(tags=["Pyment"])
-# PYMENT
-class DailyDeductionAPI(APIView):
-    def get(self, request):
-        try:
-            deduct_daily_fee()
-            active_users = User.objects.filter(is_active=True)
-            result = {
-                "success": True,
-                "message": "Kunlik to'lovlar muvaffaqiyatli amalga oshirildi",
-                "active_users_count": active_users.count(),
-                "updated_users": [
-                    {
-                        "user_id": user.id,
-                        "username": user.username,
-                        "new_balance": user.balance,
-                        "status": "active" if user.is_active else "inactive"
-                    }
-                    for user in active_users
-                ]
-            }
-            return Response(result)
-
-        except Exception as e:
-            return Response({
-                "success": False,
-                "error": str(e)
-            }, status=400)  # #
 
 
 @extend_schema(tags=["StockMovement"], responses={201: StockMovementSerializer})
@@ -465,3 +340,4 @@ class TransactionCreateAPIView(GenericAPIView):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
+
