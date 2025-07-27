@@ -64,7 +64,7 @@ WSGI_APPLICATION = 'root.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'uppos',  # Ma'lumotlar bazasi nomi
+        'NAME': 'men',  # Ma'lumotlar bazasi nomi
         'USER': 'postgres',  # PostgreSQL foydalanuvchi nomi
         'PASSWORD': '1',  # PostgreSQL foydalanuvchi paroli
         'HOST': 'localhost',  # Agar lokalda ishlatayotgan bo'lsangiz

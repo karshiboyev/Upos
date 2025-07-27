@@ -1,16 +1,14 @@
 import json
-from decimal import Decimal
-
+from django.db import transaction as db_transaction
 from django.contrib.auth.hashers import make_password
-from django.db import transaction
 from redis import Redis
 from rest_framework.exceptions import ValidationError
 from rest_framework.fields import CharField, IntegerField
 from rest_framework.serializers import Serializer, ModelSerializer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import ProductCategory, Product, Shop, User, Unit, Role, StockMovement, Customer, Transaction, \
-    TransactionItem
+from .models import ProductCategory, Product, Shop, User, Unit, Role, StockMovement, Customer, TransactionItem, \
+    Transaction
 
 
 class ShopSerializer(serializers.ModelSerializer):
@@ -43,8 +41,8 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'description', 'price', 'cost_price','user_id',
-            'unit', 'category', 'barcode', 'image_url',
+            'id', 'name', 'description', 'price', 'cost_price', 'user_id',
+            'unit', 'category', 'barcode', 'image_url', 'quantity',
             'is_active', 'shop', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -54,27 +52,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'full_name', 'phone_number', 'is_active','is_shop','is_staff'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-
-
-class TransactionBrcodeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = [
-            'barcode', 'name', 'description', 'price', 'image_url', 'category_id', 'unit_id', 'shop_id', 'is_active'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-
-class TransactionListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = [
-            'id', 'name', 'description', 'barcode', 'price', 'image_url', 'category_id', 'unit_id', 'shop_id',
-            'is_active'
+            'id', 'full_name', 'phone_number', 'is_active', 'is_shop', 'is_staff'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -165,144 +143,184 @@ class UserModelSerializer(ModelSerializer):
         return make_password(value)
 
 
-class CreateTransactionSerializer(serializers.Serializer):
-    """
-    Serializer for creating transactions based on your JSON structure
-    """
-    products = serializers.ListField(
-        child=serializers.DictField()
-    )
-    paymentType = serializers.CharField(max_length=20)
-    debtor = serializers.DictField(required=False, allow_null=True)
+class TransactionItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TransactionItem
+        fields = '__all__'
 
-    def validate_products(self, value):
-        if not value:
-            raise serializers.ValidationError("Products list cannot be empty")
 
-        for i, product_data in enumerate(value):
-            # Debug: print what we received
-            print(f"Product {i}: {product_data}")
+class TransactionListSerializer(serializers.ModelSerializer):
+    items = TransactionItemSerializer(many=True, read_only=True)
+    items_count = serializers.IntegerField(read_only=True)
 
-            required_fields = ['id', 'name', 'count', 'shopId']
-            for field in required_fields:
-                if field not in product_data:
-                    raise serializers.ValidationError(f"Missing field: {field} in product {i}")
+    class Meta:
+        model = Transaction
+        fields = '__all__'
 
-            # Validate data types
-            try:
-                int(product_data['count'])
-            except (ValueError, TypeError):
-                raise serializers.ValidationError(f"Product count must be integer in product {i}")
 
+class ForgotPasswordSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=20)
+
+    def validate_phone_number(self, value):
+        query = User.objects.filter(phone_number=value)
+        if not query.exists():
+            raise ValidationError("Bunday Telefon raqam mavjud emas")
         return value
 
-    def validate_paymentType(self, value):
-        valid_types = ['cash', 'card', 'debt', 'mixed']
-        if value not in valid_types:
-            raise serializers.ValidationError(f"Invalid payment type. Must be one of: {valid_types}")
-        return value
+
+class ForgotUpdatePasswordSerializer(Serializer):
+    password = CharField(max_length=20, required=True)
+    confirm_password = CharField(max_length=20, required=True)
+    verify_pk = CharField(required=True, max_length=255)
 
     def validate(self, attrs):
-        payment_type = attrs.get('paymentType')
-        debtor = attrs.get('debtor')
+        redis = Redis(decode_responses=True)
+        pk = attrs.get("verify_pk")
+        password = attrs.get("password")
+        confirm_password = attrs.get("confirm_password")
+        data = redis.mget(pk)[0]
+        if data:
+            if password != confirm_password:
+                raise ValidationError("Password va Confirm password tasdiqlamadi")
 
-        if payment_type == 'debt' and not debtor:
-            raise serializers.ValidationError("Debtor info required for debt payments")
+            data = json.loads(data)
+            self.phone_number = data.get("data").get("phone_number")
+            self.password = password
+            User.objects.filter(phone_number=self.phone_number).update(password=make_password(password))
+            return attrs
+        else:
+            raise ValidationError("Bu sòrovni amalga oshirish uchun tasdiqlanmagan !")
 
-        if debtor and ('phoneNumber' not in debtor or 'FullName' not in debtor):
-            raise serializers.ValidationError("Debtor must have phoneNumber and FullName")
 
-        return attrs
+class ProductPurchaseSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    count = serializers.IntegerField()
+    shop_id = serializers.UUIDField()
+    user_id = serializers.UUIDField()
 
-    @transaction.atomic
+
+class DebtorSerializer(serializers.Serializer):
+    phone_number = serializers.CharField()
+    full_name = serializers.CharField()
+
+
+class TransactionItemDetailSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name')
+    unit = serializers.CharField(source='product.unit')
+
+    class Meta:
+        model = TransactionItem
+        fields = ['product_name', 'unit', 'quantity', 'price_at_sale']
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+    items = TransactionItemDetailSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Transaction
+        fields = '__all__'
+
+
+class TransactionCreateSerializer(serializers.Serializer):
+    products = ProductPurchaseSerializer(many=True)
+    payment_type = serializers.ChoiceField(choices=Transaction.PAYMENT_TYPES)
+    debtor = DebtorSerializer(required=False, allow_null=True)
+
     def create(self, validated_data):
-        products_data = validated_data['products']
-        payment_type = validated_data['paymentType']
-        debtor_data = validated_data.get('debtor')
-        user = self.context['request'].user
+        products_data = validated_data.pop("products")
+        payment_type = validated_data.get("payment_type")
+        debtor_data = validated_data.get("debtor", None)
 
-        # Get shop from first product
-        shop_id = products_data[0]['shopId']
+        if not products_data:
+            raise serializers.ValidationError("Mahsulotlar ro'yxati bo'sh bo'lishi mumkin emas.")
 
-        # Handle customer/debtor
+        # 1. Har doim birinchi mahsulotdan shop va user ni olamiz
+        first_item = products_data[0]
+        try:
+            shop = Shop.objects.get(id=first_item["shop_id"])
+            user = User.objects.get(id=first_item["user_id"])
+        except Shop.DoesNotExist:
+            raise serializers.ValidationError({"shop_id": "Berilgan shop topilmadi."})
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"user_id": "Berilgan user topilmadi."})
+
         customer = None
-        if debtor_data:
-            customer, created = Customer.objects.get_or_create(
-                phone_number=debtor_data['phoneNumber'],
-                shop_id=shop_id,
-                defaults={
-                    'full_name': debtor_data['FullName'],
-                    'total_debt': Decimal('0.00')
-                }
+        if payment_type == 'debt':
+            if not debtor_data:
+                raise serializers.ValidationError({"debtor": "Debt to'lovi uchun debtor ma'lumotlari kerak."})
+            phone = debtor_data.get("phone_number")
+            full_name = debtor_data.get("full_name")
+
+            customer, _ = Customer.objects.get_or_create(
+                phone_number=phone,
+                shop=shop,
+                defaults={"full_name": full_name}
+            )
+        elif debtor_data:
+            raise serializers.ValidationError({"debtor": "Debtor faqat payment_type = 'debt' bo'lganda kerak bo'ladi."})
+
+        total_price = 0
+        cost_total = 0
+        profit_total = 0
+
+        with db_transaction.atomic():
+            # 2. Transactionni boshlang'ich qiymatlar bilan yaratamiz
+            transaction = Transaction.objects.create(
+                shop=shop,
+                user=user,
+                customer=customer,
+                payment_type=payment_type,
+                total_price=0,  # vaqtincha
+                cost_total=0,
+                profit=0
             )
 
-        # Calculate totals
-        total_price = Decimal('0.00')
-        total_cost = Decimal('0.00')
-        items_data = []
+            for item in products_data:
+                try:
+                    product = Product.objects.get(id=item["id"])
+                except Product.DoesNotExist:
+                    raise serializers.ValidationError({"product_id": f"Mahsulot topilmadi: {item['id']}"})
 
-        for product_data in products_data:
-            try:
-                product = Product.objects.get(id=product_data['id'])
-            except Product.DoesNotExist:
-                raise serializers.ValidationError(f"Product {product_data['id']} not found")
+                quantity = item["count"]
+                if quantity <= 0:
+                    raise serializers.ValidationError(
+                        {"count": f"{product.name} uchun count 0 dan katta bo'lishi kerak."})
 
-            quantity = int(product_data['count'])
+                # 3. Product zaxirasini tekshiramiz
+                if product.quantity < quantity:
+                    raise serializers.ValidationError({
+                        "stock": f"{product.name} mahsulotda {product.quantity} dona bor, {quantity} talab qilinyapti."
+                    })
 
-            # Check stock
-            if product.stock < quantity:
-                raise serializers.ValidationError(
-                    f"Not enough stock for {product.name}. Available: {product.stock}"
+                # 4. Mahsulot zaxirasidan ayiramiz
+                product.quantity -= quantity
+                product.save()
+
+                price = product.price
+                cost = product.cost_price
+
+                TransactionItem.objects.create(
+                    transaction=transaction,
+                    product=product,
+                    quantity=quantity,
+                    price_at_sale=price,
+                    cost_at_sale=cost
                 )
 
-            item_total = product.price * quantity
-            item_cost = product.cost_price * quantity
+                total_price += price * quantity
+                cost_total += cost * quantity
+                profit_total += (price - cost) * quantity
 
-            total_price += item_total
-            total_cost += item_cost
+            # 5. Transactionni yangilaymiz
+            transaction.total_price = total_price
+            transaction.cost_total = cost_total
+            transaction.profit = profit_total
+            transaction.save()
 
-            items_data.append({
-                'product': product,
-                'quantity': quantity,
-                'price_at_sale': product.price,
-                'cost_at_sale': product.cost_price
-            })
+            # 6. Agar debt bo'lsa — mijozga qarzdorlik qo‘shamiz
+            if payment_type == 'debt' and customer:
+                customer.total_debt += total_price
+                customer.save()
 
-        # Create transaction
-        transaction_obj = Transaction.objects.create(
-            shop_id=shop_id,
-            user=user,
-            customer=customer,
-            total_price=total_price,
-            cost_total=total_cost,
-            profit=total_price - total_cost,
-            payment_type=payment_type
-        )
-
-        # Create items and update stock
-        for item_data in items_data:
-            TransactionItem.objects.create(
-                transaction=transaction_obj,
-                product=item_data['product'],
-                quantity=item_data['quantity'],
-                price_at_sale=item_data['price_at_sale'],
-                cost_at_sale=item_data['cost_at_sale'],
-                discount=Decimal('0.00')
-            )
-
-            # Update stock
-            product = item_data['product']
-            product.stock -= item_data['quantity']
-            product.save()
-
-        # Update debt if needed
-        if payment_type == 'debt' and customer:
-            customer.total_debt += total_price
-            customer.save()
-
-        return {
-            'transaction_id': str(transaction_obj.id),
-            'total_price': float(total_price),
-            'payment_type': payment_type,
-            'status': 'success'
-        }
+        return transaction

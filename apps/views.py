@@ -1,10 +1,12 @@
+from django.utils import timezone
 
+from django.db.models.aggregates import Count
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from rest_framework.generics import get_object_or_404, CreateAPIView
+from rest_framework.generics import get_object_or_404, CreateAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.models import   Payment
+from apps.models import Payment
 from apps.permissions import IsActiveUser
 from apps.serializers import *
 from apps.tasks import start_daily_deduction, deduct_daily_fee
@@ -36,7 +38,7 @@ class ShopCreateAPIView(generics.CreateAPIView):
         # Hozirgi foydalanuvchining is_shop maydonini True qilish
         user = self.request.user
         user.is_shop = True
-        user.shop_id =shop.id
+        user.shop_id = shop.id
         user.save()
 
         return shop
@@ -46,6 +48,7 @@ class ShopCreateAPIView(generics.CreateAPIView):
 class ShopListAPIView(generics.ListAPIView):
     serializer_class = ShopSerializer
     permission_classes = [IsAuthenticated]
+
     def get_queryset(self):
         return Shop.objects.filter(user_id=self.request.user.id)
 
@@ -160,9 +163,7 @@ class ProfileListApi(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-
         return User.objects.filter(id=self.request.user.id)
-
 
 
 @extend_schema(tags=["Pyment"])
@@ -280,7 +281,6 @@ class StockMovementListAPI(APIView):
         OpenApiParameter(
             name='name',
             type=str,
-            location=OpenApiParameter.QUERY,
             description='Search term to filter products by name (case-insensitive)',
             required=False,
         )
@@ -298,7 +298,7 @@ class SearchAPI(generics.ListAPIView):
         return queryset
 
 
-@extend_schema(tags=['Register'])
+@extend_schema(tags=['auth'])
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request: Request, *args, **kwargs) -> Response:
         serializer = self.get_serializer(data=request.data)
@@ -314,7 +314,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             raise InvalidToken(e.args[0]) from e
 
 
-@extend_schema(tags=['Register'])
+@extend_schema(tags=['auth'])
 class VerifyLoginOtpView(TokenObtainPairView):
     serializer_class = VerifyOtpSerializer
 
@@ -332,7 +332,7 @@ class VerifyLoginOtpView(TokenObtainPairView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(tags=['Register'])
+@extend_schema(tags=['auth'])
 class VerifyRegisterOtpView(GenericAPIView):
     serializer_class = VerifyOtpSerializer
 
@@ -360,6 +360,7 @@ class VerifyRegisterOtpView(GenericAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(tags=['Register'])
 class RegisterAPIView(GenericAPIView):
     serializer_class = UserModelSerializer
 
@@ -373,32 +374,94 @@ class RegisterAPIView(GenericAPIView):
         return Response(serializer.errors)
 
 
-
 @extend_schema(tags=['Transaction'])
-class CreateTransactionView(generics.CreateAPIView):
-    serializer_class = CreateTransactionSerializer
+class TransactionsList(generics.ListAPIView):
+    serializer_class = TransactionListSerializer
     permission_classes = [IsAuthenticated]
 
-    def create(self, request, *args, **kwargs):
+    def get_queryset(self):
+        return Transaction.objects.filter(
+            user=self.request.user
+        ).annotate(
+            items_count=Count('items')  # related_name="items"
+        ).prefetch_related('items')
+
+
+@extend_schema(tags=['auth'])
+class ForgotPasswordAPIView(GenericAPIView):
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request):
         serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = User.objects.get(phone_number=request.data.get('phone_number'))
+            message = "Bu Eskiz dan test"
+            pk = str(uuid.uuid4())
+            user = UserModelSerializer(instance=user).data
+            send_code.delay(user_data=user, message=message, pk=pk)
+            return Response({"message": "tastiqlash uchun code yuborilidi !", "pk": pk}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(tags=['auth'])
+class ForgotOTPdAPIView(GenericAPIView):
+    serializer_class = VerifyOtpSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            return Response({"verify_pk": request.data.get("verify_pk")}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(tags=['auth'])
+class ForgotUpdatePasswordAPIView(GenericAPIView):
+    serializer_class = ForgotUpdatePasswordSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = User.objects.get(phone_number=serializer.phone_number)
+            user.set_password(serializer.password)
+            user.save()
+            return Response({"message": "Hisobni passwordi mofaqiyatli òzgartirildi"}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(tags=['Transaction'])
+class TransactionCreateAPIView(GenericAPIView):
+    serializer_class = TransactionCreateSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
             try:
-                result = serializer.save()
-                return Response({
-                    'success': True,
-                    'message': 'Transaction created successfully',
-                    'data': result
-                }, status=status.HTTP_201_CREATED)
-
+                transaction = serializer.save()
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Order muvaffaqiyatli yaratildi",
+                        "data": TransactionSerializer(transaction).data  # ✅ TO‘G‘RI SERIALIZER
+                    },
+                    status=status.HTTP_201_CREATED
+                )
             except Exception as e:
-                return Response({
-                    'success': False,
-                    'message': f'Error creating transaction: {str(e)}'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {
+                        "success": False,
+                        "message": f"Xatolik yuz berdi: {str(e)}"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        return Response({
-            'success': False,
-            'message': 'Validation failed',
-            'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                "success": False,
+                "message": "Ma'lumotlar noto'g'ri",
+                "errors": serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )

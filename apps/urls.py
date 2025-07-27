@@ -6,7 +6,7 @@ from apps.views import ShopCreateAPIView, ShopListAPIView, CategoryCreatApi, Cat
     ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, PaymentView, DailyDeductionAPI, \
     StockMovementAPI, StockMovementListAPI, \
     SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView, \
-    CreateTransactionView
+    TransactionsList, ForgotPasswordAPIView, ForgotOTPdAPIView, ForgotUpdatePasswordAPIView, TransactionCreateAPIView
 
 urlpatterns = [
     # JWT
@@ -58,14 +58,20 @@ urlpatterns += [
     path('api/sercher/', SearchAPI.as_view()),
 
 ]
+
+# ============================== Auth ============================================
 urlpatterns += [
     path('register', RegisterAPIView.as_view(), name='token_obtain_pair'),
     path('register/verifyOtp', VerifyRegisterOtpView.as_view(), name='token_obtain_pair'),
     path('login', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('login/verifyOTP', VerifyLoginOtpView.as_view(), name='token_obtain_pair'),
+    path('auth/forgot', ForgotPasswordAPIView.as_view(), name='token_obtain_pair'),
+    path('auth/forgot/OTP', ForgotOTPdAPIView.as_view(), name='forgot-otp'),
+    path('auth/forgot/update/password', ForgotUpdatePasswordAPIView.as_view(), name='forgot-otp'),
     path('token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 # Transaction
 urlpatterns += [
-    path('api/transaction/', CreateTransactionView.as_view())
+    path('api/transaction/', TransactionCreateAPIView.as_view(), name='purchase'),
+    path('api/transaction/historiy/',TransactionsList.as_view())
 ]

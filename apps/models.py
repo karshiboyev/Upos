@@ -135,15 +135,24 @@ class ProductCategory(models.Model):
 # Product
 # ========================
 class Product(models.Model):
+    UNIT_CHOICES = [
+        ("dona", "Dona"),
+        ("kg", "Kilogram"),
+        ("litr", "Litr"),
+        ("metr", "Metr"),
+        ("qadoq", "Qadoq"),
+        ("pachka", "Pachka"),
+        ("gr", "Gram"),
+    ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     user_id = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     cost_price = models.DecimalField(max_digits=12, decimal_places=2)
-    unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
+    unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
     category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE,null=True,blank=True)
-    barcode = models.CharField(max_length=64, blank=True, null=True)
+    barcode = models.CharField(max_length=64, unique=True, default=uuid.uuid4)
     image_url = models.ImageField(upload_to='img/')
     is_active = models.BooleanField(default=False)
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
