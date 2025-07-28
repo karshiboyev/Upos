@@ -7,7 +7,7 @@ from rest_framework.fields import CharField, IntegerField
 from rest_framework.serializers import Serializer, ModelSerializer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import  Product, Shop, User,  Role, StockMovement, Customer, TransactionItem, \
+from .models import  Product, Shop, User,  StockMovement, Customer, TransactionItem, \
     Transaction
 
 
@@ -18,11 +18,6 @@ class ShopSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-
-class RoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Role
-        fields = ['name']
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -292,4 +287,7 @@ class TransactionCreateSerializer(serializers.Serializer):
 
         return transaction
 
-
+class ProductBarcodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'

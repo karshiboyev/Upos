@@ -1,11 +1,11 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView, TokenRefreshView
 
-from apps.views import ShopCreateAPIView, ShopListAPIView,ProductCreateApi, \
-    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, \
-    StockMovementAPI, StockMovementListAPI, \
+from apps.views import ShopCreateAPIView, ShopListAPIView, ProductCreateApi, \
+    ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi,  StockMovementListAPI, \
     SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView, \
-    TransactionsList, ForgotPasswordAPIView, ForgotOTPdAPIView, ForgotUpdatePasswordAPIView, TransactionCreateAPIView
+    TransactionsList, ForgotPasswordAPIView, ForgotOTPdAPIView, ForgotUpdatePasswordAPIView, TransactionCreateAPIView, \
+    ProductBarcodeApi
 
 urlpatterns = [
     # JWT
@@ -23,17 +23,18 @@ urlpatterns += [
 
 urlpatterns += [
     # PRODUCTS
-    path('api/category/products/creat/', ProductCreateApi.as_view()),
-    path('api/category/products/list/', ProductListApi.as_view()),
-    path('api/category/products/<str:id>/delete/', ProductDetailApi.as_view()),
-    path('api/category/products/<str:id>/update/', ProductUpdateApi.as_view()),
+    path('api/products/creat/', ProductCreateApi.as_view()),
+    path('api/products/list/', ProductListApi.as_view()),
+    path('api/products/<str:id>/delete/', ProductDetailApi.as_view()),
+    path('api/products/<str:id>/update/', ProductUpdateApi.as_view()),
+    path('api/product/barcode/<str:barcode>/',ProductBarcodeApi.as_view())
 
 ]
 
 urlpatterns += [
-    # STOCKMOVEMENT
-    path('api/stock/movement/post/', StockMovementAPI.as_view()),
-    path('api/stock/movement/list/', StockMovementListAPI.as_view()),
+    # # STOCKMOVEMENT
+    # path('api/stock/movement/post/', StockMovementAPI.as_view()),
+    # path('api/stock/movement/list/', StockMovementListAPI.as_view()),
 
     # Serche
     path('api/sercher/', SearchAPI.as_view()),

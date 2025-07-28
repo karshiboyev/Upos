@@ -1,10 +1,11 @@
 import uuid
 
 from django.conf import settings
-from django.contrib.auth.models import AbstractBaseUser,  PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+
 
 # ========================
 # Custom User Manager
@@ -57,18 +58,19 @@ class CustomUserManager(UserManager):
 
 
 
-
 # ========================
 # User (SuperAdmin)
 # ========================
-class User(AbstractBaseUser):
+class User(AbstractBaseUser,PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
     is_active = models.BooleanField(default=True)
+    is_superuser = models.BooleanField(default=False)
     is_shop = models.BooleanField(default=False)
     shop_id = models.UUIDField(null=True, blank=True)
     is_staff = models.BooleanField(default=False)
+    balance = models.FloatField(default=0.0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     objects = CustomUserManager()
@@ -77,6 +79,7 @@ class User(AbstractBaseUser):
 
     def __str__(self):
         return self.phone_number
+
 
 # ========================
 # Shop
@@ -90,13 +93,10 @@ class Shop(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
 # ========================
 # Role & Permission
 # ========================
-class Role(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-
-
 
 
 
@@ -125,7 +125,6 @@ class Product(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     quantity = models.FloatField(default=0.0)
     stock = models.IntegerField(default=0)
-
 
 
 class StockMovement(models.Model):
@@ -168,7 +167,6 @@ class Transaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-
 class TransactionItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name="items")
@@ -193,5 +191,3 @@ class Payment(models.Model):
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='paid')
     paid_until = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
-
-

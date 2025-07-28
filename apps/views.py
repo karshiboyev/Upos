@@ -1,14 +1,10 @@
-from django.utils import timezone
-
 from django.db.models.aggregates import Count
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, DestroyAPIView, UpdateAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-
 from apps.permissions import IsActiveUser
 from apps.serializers import *
-
 import uuid
 from rest_framework.generics import GenericAPIView
 from rest_framework.views import APIView
@@ -17,7 +13,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import generics, status
 from rest_framework.request import Request
 from rest_framework.response import Response
-
 from apps.models import User
 from apps.serializers import VerifyOtpSerializer, CustomTokenObtainPairSerializer, \
     UserModelSerializer
@@ -25,7 +20,7 @@ from apps.tasks import send_code
 
 
 @extend_schema(tags=['shops'])
-class ShopCreateAPIView(generics.CreateAPIView):
+class ShopCreateAPIView(CreateAPIView):
     queryset = Shop.objects.all()
     serializer_class = ShopSerializer
     permission_classes = [IsAuthenticated]
@@ -44,7 +39,7 @@ class ShopCreateAPIView(generics.CreateAPIView):
 
 
 @extend_schema(tags=['shops'])
-class ShopListAPIView(generics.ListAPIView):
+class ShopListAPIView(ListAPIView):
     serializer_class = ShopSerializer
     permission_classes = [IsAuthenticated]
 
@@ -52,22 +47,14 @@ class ShopListAPIView(generics.ListAPIView):
         return Shop.objects.filter(user_id=self.request.user.id)
 
 
-
-
-
-
-
-
-
-
 @extend_schema(tags=['product'])
-class ProductCreateApi(generics.CreateAPIView):
+class ProductCreateApi(CreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
 
 @extend_schema(tags=['product'])
-class ProductListApi(generics.ListAPIView):
+class ProductListApi(ListAPIView):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
 
@@ -76,7 +63,7 @@ class ProductListApi(generics.ListAPIView):
 
 
 @extend_schema(tags=['product'])
-class ProductDetailApi(generics.DestroyAPIView):
+class ProductDetailApi(DestroyAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     lookup_field = 'id'
@@ -84,15 +71,18 @@ class ProductDetailApi(generics.DestroyAPIView):
 
 
 @extend_schema(tags=['product'])
-class ProductUpdateApi(generics.UpdateAPIView):
+class ProductUpdateApi(UpdateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     lookup_field = 'id'
     lookup_url_kwarg = 'id'
+@extend_schema(tags=['product'])
+class ProductBarcodeApi(ListAPIView):
+    serializer_class = ProductBarcodeSerializer
 
 
 @extend_schema(tags=['profile'])
-class ProfileListApi(generics.ListAPIView):
+class ProfileListApi(ListAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated]
 
@@ -100,12 +90,12 @@ class ProfileListApi(generics.ListAPIView):
         return User.objects.filter(id=self.request.user.id)
 
 
-
-@extend_schema(tags=["StockMovement"], responses={201: StockMovementSerializer})
-class StockMovementAPI(CreateAPIView):
-    queryset = StockMovement.objects.all()
-    serializer_class = StockMovementSerializer
-    permission_classes = [IsActiveUser]
+@extend_schema(tags=['product'])
+class ProductBarcodeApi(RetrieveAPIView):
+    serializer_class = ProductBarcodeSerializer
+    # permission_classes = [IsAuthenticated]
+    queryset = Product.objects.all()
+    lookup_field = 'barcode'
 
 
 @extend_schema(tags=["StockMovement"])
@@ -161,16 +151,19 @@ class StockMovementListAPI(APIView):
         )
     ]
 )
-class SearchAPI(generics.ListAPIView):
+class SearchAPI(ListAPIView):
     serializer_class = SercherSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
         search_term = self.request.query_params.get('name', '')
-        print(f"Search term: {search_term}")  # Debug
-        queryset = Product.objects.filter(name__icontains=search_term).only('id', 'name', 'price')
-        print(f"Queryset: {list(queryset.values('id', 'name', 'price'))}")  # Debug
-        return queryset
+        if self.request.user.is_authenticated and Product.objects.filter(user_id=self.request.user.id).exists():
+            queryset = Product.objects.filter(
+                user_id=self.request.user.id,
+                name__icontains=search_term
+            ).only('id', 'name', 'price')
+            return queryset
+        return Product.objects.none()
 
 
 @extend_schema(tags=['auth'])
@@ -256,7 +249,7 @@ class TransactionsList(generics.ListAPIView):
 
     def get_queryset(self):
         return Transaction.objects.filter(
-            user=self.request.user
+            user=self.request.user.id
         ).annotate(
             items_count=Count('items')  # related_name="items"
         ).prefetch_related('items')
@@ -340,4 +333,3 @@ class TransactionCreateAPIView(GenericAPIView):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
-
