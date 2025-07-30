@@ -290,3 +290,84 @@ class ProductBarcodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
+
+
+# new
+
+class TransactionItemWithProductSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)   # <-- full product body
+
+    class Meta:
+        model = TransactionItem
+        fields = ['product', 'quantity', 'price_at_sale', 'cost_at_sale', 'discount']
+
+
+class ProductBreakdownSerializer(serializers.Serializer):
+    product_id = serializers.UUIDField()
+    name = serializers.CharField()
+    unit = serializers.CharField()
+    total_quantity = serializers.DecimalField(max_digits=18, decimal_places=3)
+    total_price = serializers.DecimalField(max_digits=18, decimal_places=2)
+    total_cost = serializers.DecimalField(max_digits=18, decimal_places=2)
+
+
+class TransactionHistorySerializer(serializers.ModelSerializer):
+    # line items with full product bodies
+
+
+    # annotated in queryset (see view)
+    items_count = serializers.IntegerField(read_only=True)
+    product_type_count = serializers.IntegerField(read_only=True)
+
+    # computed from prefetched items
+    product_breakdown = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Transaction
+        fields = [
+            'id', 'created_at', 'status', 'payment_type',
+            'total_price', 'cost_total', 'profit',
+            'shop', 'user', 'customer',
+            'items_count', 'product_type_count',
+            'product_breakdown',
+
+        ]
+
+    def get_product_breakdown(self, obj):
+        """
+        Returns aggregated per-product totals in this transaction:
+        [
+          { product_id, name, unit, total_quantity, total_price, total_cost }, ...
+        ]
+        """
+        # 'items' is prefetched; aggregate in Python to avoid extra queries
+        agg = {}
+        for it in obj.items.all():
+            p = it.product
+            key = p.id
+            if key not in agg:
+                agg[key] = {
+                    "product_id": p.id,
+                    "name": p.name,
+                    "unit": p.unit,
+                    "total_quantity": 0,
+                    "total_price": 0,
+                    "total_cost": 0,
+                }
+            agg[key]["total_quantity"] += it.quantity
+            agg[key]["total_price"] += (it.price_at_sale or 0) * it.quantity
+            agg[key]["total_cost"] += (it.cost_at_sale or 0) * it.quantity
+
+        # convert to serializer-friendly numeric types
+        from decimal import Decimal
+        return [
+            {
+                "product_id": v["product_id"],
+                "name": v["name"],
+                "unit": v["unit"],
+                "total_quantity": Decimal(str(v["total_quantity"])),
+                "total_price": Decimal(str(v["total_price"])),
+                "total_cost": Decimal(str(v["total_cost"])),
+            }
+            for v in agg.values()
+        ]
