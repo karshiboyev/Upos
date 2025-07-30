@@ -110,7 +110,6 @@ class TransactionItemSerializer(serializers.ModelSerializer):
 class TransactionListSerializer(serializers.ModelSerializer):
     items = TransactionItemSerializer(many=True, read_only=True)
     items_count = serializers.IntegerField(read_only=True)
-
     class Meta:
         model = Transaction
         fields = '__all__'
