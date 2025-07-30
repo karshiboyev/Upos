@@ -6,6 +6,7 @@ from apps.views import ShopCreateAPIView, ShopListAPIView, ProductCreateApi, \
     SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView, \
     TransactionsList, ForgotPasswordAPIView, ForgotOTPdAPIView, ForgotUpdatePasswordAPIView, TransactionCreateAPIView, \
     ProductBarcodeApi
+from apps.views_analytics import AnalyticsAPI
 
 urlpatterns = [
     # JWT
@@ -56,4 +57,9 @@ urlpatterns += [
 urlpatterns += [
     path('api/transaction/', TransactionCreateAPIView.as_view(), name='purchase'),
     path('api/transaction/historiy/',TransactionsList.as_view())
+]
+
+
+urlpatterns += [
+    path("api/analytics/", AnalyticsAPI.as_view(), name="analytics"),
 ]
