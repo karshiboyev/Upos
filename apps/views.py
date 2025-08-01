@@ -241,18 +241,25 @@ class RegisterAPIView(GenericAPIView):
             return Response({"message": "tastiqlash uchun code yuborilidi !", "pk": pk}, status=status.HTTP_200_OK)
         return Response(serializer.errors)
 
-
+from django.db.models import Count, Prefetch
 @extend_schema(tags=['Transaction'])
 class TransactionsList(generics.ListAPIView):
-    serializer_class = TransactionListSerializer
+    serializer_class = TransactionHistorySerializer   # <-- use the new serializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Transaction.objects.filter(
-            user=self.request.user.id
-        ).annotate(
-            items_count=Count('items')  # related_name="items"
-        ).prefetch_related('items')
+        return (
+            Transaction.objects
+            .filter(user=self.request.user)  # FK object, not just id
+            .annotate(
+                items_count=Count('items'),                         # total line items
+                product_type_count=Count('items__product', distinct=True)  # distinct product types
+            )
+            .prefetch_related(
+                Prefetch('items', queryset=TransactionItem.objects.select_related('product'))
+            )
+            .order_by('-created_at')
+        )
 
 
 @extend_schema(tags=['auth'])
