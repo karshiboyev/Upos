@@ -26,7 +26,6 @@ INSTALLED_APPS = [
 
     # myapp
     'apps.apps.AppsConfig',
-    # Pyme
     # third party package
     'rest_framework',
     'paytechuz.integrations.django',
