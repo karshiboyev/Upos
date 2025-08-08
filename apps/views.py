@@ -1,6 +1,6 @@
-
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from rest_framework.generics import CreateAPIView, ListAPIView, DestroyAPIView, UpdateAPIView, RetrieveAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, DestroyAPIView, UpdateAPIView, RetrieveAPIView, \
+    ListCreateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.serializers import *
@@ -343,10 +343,14 @@ class TransactionCreateAPIView(GenericAPIView):
         )
 
 
-
 @extend_schema(tags=['Invoice'])
 class InvoiceView(RetrieveAPIView):
     serializer_class = InvoiceSerializer
     queryset = User.objects.all()
     lookup_field = 'invoice_code'
 
+
+@extend_schema(tags=['TEST'])
+class TestListCreateAPIView(ListCreateAPIView):
+    serializer_class = TestModelSerializer
+    queryset = TestModel.objects.all()

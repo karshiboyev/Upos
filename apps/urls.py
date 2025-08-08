@@ -5,7 +5,7 @@ from apps.views import ShopCreateAPIView, ShopListAPIView, ProductCreateApi, \
     ProductListApi, ProductDetailApi, ProductUpdateApi, ProfileListApi, \
     SearchAPI, RegisterAPIView, VerifyRegisterOtpView, CustomTokenObtainPairView, VerifyLoginOtpView, \
     TransactionsList, ForgotPasswordAPIView, ForgotOTPdAPIView, ForgotUpdatePasswordAPIView, TransactionCreateAPIView, \
-    ProductBarcodeApi, InvoiceView
+    ProductBarcodeApi, InvoiceView, TestListCreateAPIView
 from apps.views_analytics import AnalyticsAPI
 
 urlpatterns = [
@@ -57,5 +57,9 @@ urlpatterns += [
 
 urlpatterns += [
     path("api/analytics/", AnalyticsAPI.as_view(), name="analytics"),
-    path('api/v1/invioce/<str:invoice_code>/',InvoiceView.as_view())
+    path('api/v1/invioce/<str:invoice_code>/', InvoiceView.as_view())
+]
+
+urlpatterns += [
+    path("api/testmodel/", TestListCreateAPIView.as_view(), name="test-model"),
 ]

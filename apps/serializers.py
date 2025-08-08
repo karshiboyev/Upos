@@ -8,7 +8,7 @@ from rest_framework.serializers import Serializer, ModelSerializer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 
-from .models import Product, Shop, User, StockMovement, Customer, TransactionItem, Transaction
+from .models import Product, Shop, User, StockMovement, Customer, TransactionItem, Transaction, TestModel
 
 
 class ShopSerializer(serializers.ModelSerializer):
@@ -378,3 +378,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model =  User
         fields = ['full_name','phone_number','balance']
+
+class TestModelSerializer(ModelSerializer):
+    class Meta:
+        model = TestModel
+        fields = '__all__'

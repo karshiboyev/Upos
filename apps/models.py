@@ -5,9 +5,9 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
-from django.db.models import Model
+from django.db.models import Model, CharField
 
-from apps.tests import generate_unique_invoice_code
+from apps.gen_code import generate_unique_invoice_code
 
 
 # ========================
@@ -185,3 +185,11 @@ class TransactionItem(models.Model):
     price_at_sale = models.DecimalField(max_digits=12, decimal_places=2)
     cost_at_sale = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+
+
+class TestModel(Model):
+    name = CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
