@@ -1,0 +1,41 @@
+name: DRF CI/CD
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodni yuklab olish
+        uses: actions/checkout@v3
+
+      - name: Python versiyasini o‘rnatish
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Kutubxonalarni o‘rnatish
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Testlarni ishlatish
+        run: |
+          python manage.py test
+
+      - name: Deploy qilish (SSH orqali)
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          cd /home/${{ secrets.SERVER_USER }}/myproject &&
+          git pull origin main &&
+          source venv/bin/activate &&
+          pip install -r requirements.txt &&
+          python manage.py migrate &&
+          python manage.py collectstatic --noinput &&
+          systemctl restart gunicorn &&
+          systemctl restart celery &&
+          systemctl restart celery-beat
+          "

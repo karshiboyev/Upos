@@ -22,6 +22,8 @@ from django.db.models.functions import (
     Coalesce,
 )
 
+from apps.models import User, Transaction, TransactionItem
+
 # Timezone: Asia/Tashkent
 try:
     from zoneinfo import ZoneInfo  # Python 3.9+
@@ -36,7 +38,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.models import Transaction, TransactionItem, User
 
 
 # =========================

@@ -16,7 +16,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
-    'material',              # ✅ frontend kerak    'material.admin',        # ✅ admin template
+    'material',  # ✅ frontend kerak    'material.admin',        # ✅ admin template
     'django.contrib.admin',  # ✅ django admin core
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -24,14 +24,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Sizning ilovalaringiz
+    # myapp
     'apps.apps.AppsConfig',
-
-    # DRF
+    # Pyme
+    # third party package
     'rest_framework',
-
-    # API Docs
+    'paytechuz.integrations.django',
     'drf_spectacular',
+
 ]
 
 MIDDLEWARE = [
@@ -67,7 +67,7 @@ WSGI_APPLICATION = 'root.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'men',  # Ma'lumotlar bazasi nomi
+        'NAME': 'test_kass',  # Ma'lumotlar bazasi nomi
         'USER': 'postgres',  # PostgreSQL foydalanuvchi nomi
         'PASSWORD': '1',  # PostgreSQL foydalanuvchi paroli
         'HOST': 'localhost',  # Agar lokalda ishlatayotgan bo'lsangiz
@@ -171,5 +171,14 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-ESKIZ_EMAIL = "absaitovdev@gmail.com"
-ESKIZ_PASSWORD = "XCWdtQKkEqItsIMVgkpgL1nJRXJk9OGhxTULIZ0a"
+ESKIZ_EMAIL = "tmbekzod05@gmail.com"
+ESKIZ_PASSWORD = "k49rS4CvrR3fHXUMOWSKDI0YUv45ZdQN4196nkrO"
+
+PAYCOM_SETTINGS = {
+    "TOKEN": "6893994e45c1f5776bc4625c",  # token
+    "KASSA_ID": "6893994e45c1f5776bc4625c",  # token
+    "SECRET_KEY": "mn4w0V2UDcXISTTo%7ChItqPdGPjpGerYuvP",  # password
+    "ACCOUNTS": {
+        "KEY": "order_id"
+    },
+}

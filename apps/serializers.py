@@ -7,8 +7,8 @@ from rest_framework.fields import CharField, IntegerField
 from rest_framework.serializers import Serializer, ModelSerializer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import  Product, Shop, User,  StockMovement, Customer, TransactionItem, \
-    Transaction
+
+from .models import Product, Shop, User, StockMovement, Customer, TransactionItem, Transaction
 
 
 class ShopSerializer(serializers.ModelSerializer):
@@ -371,3 +371,10 @@ class TransactionHistorySerializer(serializers.ModelSerializer):
             }
             for v in agg.values()
         ]
+
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model =  User
+        fields = ['full_name','phone_number','balance']

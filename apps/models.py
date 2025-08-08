@@ -5,6 +5,9 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+from django.db.models import Model
+
+from apps.tests import generate_unique_invoice_code
 
 
 # ========================
@@ -54,14 +57,10 @@ class CustomUserManager(UserManager):
         return self._create_user(phone_number, password, **extra_fields)
 
 
-
-
-
-
 # ========================
 # User (SuperAdmin)
 # ========================
-class User(AbstractBaseUser,PermissionsMixin):
+class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20, unique=True)
@@ -70,6 +69,11 @@ class User(AbstractBaseUser,PermissionsMixin):
     is_shop = models.BooleanField(default=False)
     shop_id = models.UUIDField(null=True, blank=True)
     is_staff = models.BooleanField(default=False)
+    invoice_code = models.CharField(
+        max_length=6,
+        unique=True,
+        editable=False
+    )
     balance = models.FloatField(default=0.0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -79,6 +83,11 @@ class User(AbstractBaseUser,PermissionsMixin):
 
     def __str__(self):
         return self.phone_number
+
+    def save(self, *args, **kwargs):
+        if not self.invoice_code:
+            self.invoice_code = generate_unique_invoice_code()
+        super().save(*args, **kwargs)
 
 
 # ========================
@@ -97,7 +106,6 @@ class Shop(models.Model):
 # ========================
 # Role & Permission
 # ========================
-
 
 
 class Product(models.Model):
@@ -151,6 +159,8 @@ class Customer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+
+
 class Transaction(models.Model):
     PAYMENT_TYPES = [('cash', 'Cash'), ('card', 'Card'), ('debt', 'Debt'), ('mixed', 'Mixed')]
     STATUS_CHOICES = [('completed', 'Completed'), ('refunded', 'Refunded'), ('cancelled', 'Cancelled')]
@@ -175,19 +185,3 @@ class TransactionItem(models.Model):
     price_at_sale = models.DecimalField(max_digits=12, decimal_places=2)
     cost_at_sale = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-
-
-# ========================
-# Payments (SaaS Billing)
-# ========================
-class Payment(models.Model):
-    PAYMENT_STATUS = [('paid', 'Paid'), ('pending', 'Pending'), ('failed', 'Failed')]
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    method = models.CharField(max_length=30, blank=True, null=True)
-    payment_reference = models.CharField(max_length=100, blank=True, null=True)
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='paid')
-    paid_until = models.DateField()
-    created_at = models.DateTimeField(auto_now_add=True)

@@ -1,9 +1,8 @@
-from django.db.models.aggregates import Count
+
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework.generics import CreateAPIView, ListAPIView, DestroyAPIView, UpdateAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from apps.permissions import IsActiveUser
 from apps.serializers import *
 import uuid
 from rest_framework.generics import GenericAPIView
@@ -13,7 +12,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import generics, status
 from rest_framework.request import Request
 from rest_framework.response import Response
-from apps.models import User
+from apps.models import User, Transaction, TransactionItem
 from apps.serializers import VerifyOtpSerializer, CustomTokenObtainPairSerializer, \
     UserModelSerializer
 from apps.tasks import send_code
@@ -76,6 +75,8 @@ class ProductUpdateApi(UpdateAPIView):
     serializer_class = ProductSerializer
     lookup_field = 'id'
     lookup_url_kwarg = 'id'
+
+
 @extend_schema(tags=['product'])
 class ProductBarcodeApi(ListAPIView):
     serializer_class = ProductBarcodeSerializer
@@ -153,7 +154,7 @@ class StockMovementListAPI(APIView):
 )
 class SearchAPI(ListAPIView):
     serializer_class = SercherSerializer
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def get_queryset(self):
         search_term = self.request.query_params.get('name', '')
@@ -172,12 +173,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
+            # message = f"Tastiqlash code: {random_code}"
             message = "Bu Eskiz dan test"
             pk = str(uuid.uuid4())
             send_code.delay(request.data, message=message, pk=pk)
             return Response({"message": "tastiqlash uchun code yuborilidi !", "pk": pk}, status=status.HTTP_200_OK)
-        except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
         except TokenError as e:
             raise InvalidToken(e.args[0]) from e
 
@@ -213,10 +213,8 @@ class VerifyRegisterOtpView(GenericAPIView):
                 "full_name": serializer.full_name,
             }
             user = User.objects.create(**data)
-
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
-
             serializer = UserModelSerializer(instance=user)
             response_data = serializer.data.copy()
             response_data["tokens"] = {
@@ -241,10 +239,13 @@ class RegisterAPIView(GenericAPIView):
             return Response({"message": "tastiqlash uchun code yuborilidi !", "pk": pk}, status=status.HTTP_200_OK)
         return Response(serializer.errors)
 
+
 from django.db.models import Count, Prefetch
+
+
 @extend_schema(tags=['Transaction'])
 class TransactionsList(generics.ListAPIView):
-    serializer_class = TransactionHistorySerializer   # <-- use the new serializer
+    serializer_class = TransactionHistorySerializer  # <-- use the new serializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -252,7 +253,7 @@ class TransactionsList(generics.ListAPIView):
             Transaction.objects
             .filter(user=self.request.user)  # FK object, not just id
             .annotate(
-                items_count=Count('items'),                         # total line items
+                items_count=Count('items'),  # total line items
                 product_type_count=Count('items__product', distinct=True)  # distinct product types
             )
             .prefetch_related(
@@ -340,3 +341,12 @@ class TransactionCreateAPIView(GenericAPIView):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
+
+
+
+@extend_schema(tags=['Invoice'])
+class InvoiceView(RetrieveAPIView):
+    serializer_class = InvoiceSerializer
+    queryset = User.objects.all()
+    lookup_field = 'invoice_code'
+
